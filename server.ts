@@ -333,7 +333,20 @@ const startServer = async () => {
         }
       });
 
-      res.json(JSON.parse(response.text));
+      let extractedData;
+      try {
+        extractedData = JSON.parse(response.text);
+      } catch (parseError) {
+        console.error("JSON Parse Error from Gemini:", response.text);
+        // Fallback to searching for JSON block if necessary
+        const jsonMatch = response.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          extractedData = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error("Failed to parse extracted profile data as JSON");
+        }
+      }
+      res.json(extractedData);
     } catch (error) {
       console.error("Extraction Error:", error);
       res.status(500).json({ error: "Failed to extract profile data" });

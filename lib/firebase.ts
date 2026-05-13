@@ -6,12 +6,10 @@ import {
   getDocFromCache, 
   getDocFromServer 
 } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
-
 // Helper to check if a value is a placeholder or an invalid URL
 const isPlaceholder = (val?: string) => {
   if (!val) return true;
-  const lowerVal = String(val).toLowerCase();
+  const lowerVal = String(val).trim().toLowerCase();
   const placeholders = [
     'your_firebase_api_key',
     'your_project.firebaseapp.com',
@@ -27,28 +25,36 @@ const isPlaceholder = (val?: string) => {
   ];
   
   if (placeholders.includes(lowerVal)) return true;
-  if (lowerVal.includes('console.firebase.google.com')) return true; // Catch console URLs being used as IDs
+  // Catch console URLs being used as IDs (common user mistake)
+  if (lowerVal.includes('console.firebase.google.com')) return true; 
+  if (lowerVal.includes('console.firebase.corp.google.com')) return true;
   if (lowerVal.includes('your_project_id')) return true;
   if (lowerVal.includes('database_id')) return true;
-  if (lowerVal.startsWith('http')) return true; // Any URL is likely a mistake
+  if (/^https?:\/\//.test(lowerVal)) return true; // Any URL is almost certainly a mistake for a config value
   
   return false;
 };
 
 const getEnv = (key: string, fallback: string) => {
   const val = import.meta.env[key];
-  return (val && !isPlaceholder(String(val))) ? String(val) : fallback;
+  // If it exists but it's a placeholder, return fallback
+  if (val && !isPlaceholder(String(val))) {
+    return String(val);
+  }
+  return fallback;
 };
 
-// Configuration object using environment variables with local config fallback
+// Configuration object using environment variables with project-specific fallbacks.
+// IMPORTANT: These fallbacks are based on the initially provisioned project.
+// If you remix this app, you should update these to your own project IDs or set them in Secrets.
 const config = {
-  apiKey: getEnv('VITE_FIREBASE_API_KEY', firebaseConfig.apiKey),
-  authDomain: getEnv('VITE_FIREBASE_AUTH_DOMAIN', firebaseConfig.authDomain),
-  projectId: getEnv('VITE_FIREBASE_PROJECT_ID', firebaseConfig.projectId),
-  storageBucket: getEnv('VITE_FIREBASE_STORAGE_BUCKET', firebaseConfig.storageBucket),
-  messagingSenderId: getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID', firebaseConfig.messagingSenderId),
-  appId: getEnv('VITE_FIREBASE_APP_ID', firebaseConfig.appId),
-  firestoreDatabaseId: getEnv('VITE_FIRESTORE_DATABASE_ID', firebaseConfig.firestoreDatabaseId)
+  apiKey: getEnv('VITE_FIREBASE_API_KEY', 'AIzaSyCT1UPa4ZiQivML5vbGrQRzL1jFswl6Pp4'),
+  authDomain: getEnv('VITE_FIREBASE_AUTH_DOMAIN', 'gen-lang-client-0279308694.firebaseapp.com'),
+  projectId: getEnv('VITE_FIREBASE_PROJECT_ID', 'gen-lang-client-0279308694'),
+  storageBucket: getEnv('VITE_FIREBASE_STORAGE_BUCKET', 'gen-lang-client-0279308694.firebasestorage.app'),
+  messagingSenderId: getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID', '978301294165'),
+  appId: getEnv('VITE_FIREBASE_APP_ID', '1:978301294165:web:5333682ca746f3d9e226dc'),
+  firestoreDatabaseId: getEnv('VITE_FIRESTORE_DATABASE_ID', 'ai-studio-79c7ec6f-dca0-4319-8f2a-c01b36c8f322')
 };
 
 // Use the database ID from config, fallback to (default) only if truly empty

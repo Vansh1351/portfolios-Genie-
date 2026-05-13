@@ -31,6 +31,9 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
   const borderColor = isDark ? 'border-slate-800' : 'border-slate-100';
   const cardBg = isDark ? 'bg-slate-900' : 'bg-slate-50';
 
+  const fontClass = profile.fontFamily === 'serif' ? 'font-serif' : profile.fontFamily === 'mono' ? 'font-mono' : 'font-sans';
+  const headingFontClass = profile.fontFamily === 'serif' ? 'font-serif' : profile.fontFamily === 'mono' ? 'font-mono' : 'font-sans';
+
   // Extract unique technologies from all projects
   const allTechs = useMemo(() => {
     const techs = new Set<string>();
@@ -1149,9 +1152,6 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
       </div>
     );
   }
-
-  const fontClass = profile.fontFamily === 'serif' ? 'font-serif' : profile.fontFamily === 'mono' ? 'font-mono' : 'font-sans';
-  const headingFontClass = profile.fontFamily === 'serif' ? 'font-serif' : profile.fontFamily === 'mono' ? 'font-mono' : 'font-sans';
 
   // Template-specific rendering
   if (profile.websiteTemplate === 'bento') {
