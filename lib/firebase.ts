@@ -1,18 +1,32 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDocFromCache, getDocFromServer } from 'firebase/firestore';
-import firebaseConfigLocal from '../firebase-applet-config.json';
+// Configuration object using environment variables with local config fallback
+const getFirebaseConfig = async () => {
+  let localConfig: any = {};
+  
+  // Only try to load the local config file in development or if env vars are missing
+  if (import.meta.env.DEV || !import.meta.env.VITE_FIREBASE_API_KEY) {
+    try {
+      const module = await import('../firebase-applet-config.json');
+      localConfig = module.default || module;
+    } catch (e) {
+      // Ignore error if file is missing in production
+    }
+  }
 
-// Configuration object with environment variables as primary and local config as fallback
-const config = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfigLocal.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigLocal.authDomain,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigLocal.projectId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigLocal.storageBucket,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigLocal.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfigLocal.appId,
-  firestoreDatabaseId: import.meta.env.VITE_FIRESTORE_DATABASE_ID || firebaseConfigLocal.firestoreDatabaseId || '(default)'
+  return {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || localConfig.apiKey,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || localConfig.authDomain,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || localConfig.projectId,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || localConfig.storageBucket,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || localConfig.messagingSenderId,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || localConfig.appId,
+    firestoreDatabaseId: import.meta.env.VITE_FIRESTORE_DATABASE_ID || localConfig.firestoreDatabaseId || '(default)'
+  };
 };
+
+const config = await getFirebaseConfig();
 
 const app = initializeApp(config);
 export const auth = getAuth(app);
