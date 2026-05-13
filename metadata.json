@@ -1,0 +1,8 @@
+{
+  "name": "PortfolioGenie AI",
+  "description": "A high-end AI-powered resume and personal website builder that constructs your professional identity through a natural conversational interview and document analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

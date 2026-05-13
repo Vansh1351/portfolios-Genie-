@@ -1,0 +1,23 @@
+{
+  "entities": {
+    "UserResumeData": {
+      "title": "User Resume Data",
+      "description": "Stores user's profile, chat sessions, and export history.",
+      "type": "object",
+      "properties": {
+        "profile_data": { "type": "object", "description": "The user's core profile information." },
+        "sessions_data": { "type": "array", "description": "Array of chat sessions with messages and history." },
+        "exports_data": { "type": "array", "description": "Array of generated export files and their links." },
+        "settings": { "type": "object", "description": "UI and app settings like theme preferences." },
+        "updated_at": { "type": "string", "format": "date-time", "description": "Last updated timestamp." }
+      },
+      "required": ["updated_at"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserResumeData",
+      "description": "User specific resume and session data."
+    }
+  }
+}
