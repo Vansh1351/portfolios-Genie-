@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { motion } from 'motion/react';
-import { Share2 } from 'lucide-react';
+import { Share2, ExternalLink } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface Props {
@@ -174,8 +174,20 @@ const ResumePreview: React.FC<Props> = ({ profile, onAddSkill, onShare, settings
       </h2>
       <div className="grid grid-cols-2 gap-6">
         {profile.projects.map((proj, idx) => (
-          <div key={idx}>
-            <h3 className="text-sm font-bold text-slate-800">{proj.title}</h3>
+          <div key={idx} className="group relative">
+            <div className="flex justify-between items-start gap-2">
+              <h3 className="text-sm font-bold text-slate-800">{proj.title}</h3>
+              {proj.link && (
+                <a 
+                  href={proj.link} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-1 text-[9px] font-bold uppercase no-print"
+                >
+                  View <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              )}
+            </div>
             <p className="text-xs text-slate-600 mt-1 leading-normal">{proj.description}</p>
             <div className="mt-2 flex flex-wrap gap-1">
               {proj.techStack.map((tech, i) => (

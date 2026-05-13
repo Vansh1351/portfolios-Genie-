@@ -14,24 +14,23 @@ dotenv.config();
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 // Support for both ESM and CJS (when bundled)
-const isEsm = typeof import.meta?.url !== 'undefined';
-let currentFilePath = '';
-let currentDirPath = '';
-
-if (isEsm) {
-  currentFilePath = fileURLToPath(import.meta.url);
-  currentDirPath = path.dirname(currentFilePath);
-} else {
-  // In CJS, these are globally available
-  // @ts-ignore
-  currentFilePath = typeof __filename !== 'undefined' ? __filename : '';
-  // @ts-ignore
-  currentDirPath = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
+let currentDirPath = process.cwd();
+try {
+  const isEsm = typeof import.meta?.url !== 'undefined';
+  if (isEsm) {
+    const filePath = fileURLToPath(import.meta.url);
+    currentDirPath = path.dirname(filePath);
+  } else {
+    // @ts-ignore
+    currentDirPath = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
+  }
+} catch (e) {
+  // Fallback to process.cwd()
 }
 
 const app = express();
 
-async function setupServer() {
+const startServer = async () => {
   const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
@@ -429,6 +428,6 @@ async function setupServer() {
   });
 }
 
-setupServer();
+startServer();
 
 export default app;

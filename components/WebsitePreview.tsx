@@ -14,6 +14,11 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
   const [activeSection, setActiveSection] = useState<string>('');
   const [selectedTech, setSelectedTech] = useState<string>('All');
   const [scrolled, setScrolled] = useState(false);
+
+  // Reset filter when template changes to avoid confusion if the new template has no filter UI
+  useEffect(() => {
+    setSelectedTech('All');
+  }, [profile.websiteTemplate]);
   const textStyle = { color: profile.themeColor || '#4f46e5' };
   const themeStyle = textStyle;
   const bgStyle = { backgroundColor: profile.themeColor || '#4f46e5' };
@@ -243,7 +248,7 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
         {/* Work Section */}
         <section id="work" className="py-32 px-8 relative z-10">
           <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-end mb-24 gap-8">
+            <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-8">
               <div>
                 <span className="text-xs font-bold uppercase tracking-[0.4em] mb-4 block opacity-40">Portfolio</span>
                 <h2 className="text-5xl md:text-8xl font-black tracking-tighter uppercase">Selected<br/>Works</h2>
@@ -253,43 +258,66 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
               </p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-24 md:gap-32">
-              {profile.projects?.map((proj, i) => (
-                <motion.div 
-                  key={i} 
-                  initial={{ opacity: 0, y: 60 }} 
-                  whileInView={{ opacity: 1, y: 0 }} 
-                  viewport={{ once: true, margin: "-100px" }}
-                  transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                  className="group"
+            {/* Tech Filter */}
+            <div className="flex flex-wrap gap-3 mb-20">
+              {allTechs.map(tech => (
+                <button
+                  key={tech}
+                  onClick={() => setSelectedTech(tech)}
+                  className={`px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${
+                    selectedTech === tech 
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 scale-110 shadow-xl' 
+                      : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
                 >
-                  <div className="relative aspect-[4/5] overflow-hidden rounded-[2.5rem] mb-10 bg-slate-100 dark:bg-slate-900 shadow-2xl shadow-black/5">
-                    <img 
-                      src={`https://picsum.photos/1200/1500?random=${i + 700}`} 
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 ease-out" 
-                      alt={proj.title} 
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-12">
-                      <div className="translate-y-10 group-hover:translate-y-0 transition-transform duration-500">
-                        <p className="text-white/60 text-sm font-bold uppercase tracking-widest mb-4">{proj.techStack?.join(' • ')}</p>
-                        {proj.link && (
-                          <a href={proj.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3 bg-white text-black px-8 py-4 rounded-full font-bold uppercase tracking-widest text-xs hover:bg-indigo-50 transition-colors">
-                            View Case Study <ExternalLink className="w-4 h-4" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-start gap-4">
-                    <div>
-                      <h3 className="text-4xl font-black mb-4 uppercase tracking-tighter">{proj.title}</h3>
-                      <p className="text-lg opacity-60 leading-relaxed max-w-md">{proj.description}</p>
-                    </div>
-                    <span className="text-6xl font-black opacity-5 tracking-tighter">0{i + 1}</span>
-                  </div>
-                </motion.div>
+                  {tech}
+                </button>
               ))}
             </div>
+
+            {filteredProjects.length > 0 ? (
+              <div className="grid md:grid-cols-2 gap-24 md:gap-32">
+                {filteredProjects.map((proj, i) => (
+                  <motion.div 
+                    key={i} 
+                    initial={{ opacity: 0, y: 60 }} 
+                    whileInView={{ opacity: 1, y: 0 }} 
+                    viewport={{ once: true, margin: "-100px" }}
+                    transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                    className="group"
+                  >
+                    <div className="relative aspect-[4/5] overflow-hidden rounded-[2.5rem] mb-10 bg-slate-100 dark:bg-slate-900 shadow-2xl shadow-black/5">
+                      <img 
+                        src={`https://picsum.photos/1200/1500?random=${i + 700}`} 
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 ease-out" 
+                        alt={proj.title} 
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-12">
+                        <div className="translate-y-10 group-hover:translate-y-0 transition-transform duration-500">
+                          <p className="text-white/60 text-sm font-bold uppercase tracking-widest mb-4">{proj.techStack?.join(' • ')}</p>
+                          {proj.link && (
+                            <a href={proj.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3 bg-white text-black px-8 py-4 rounded-full font-bold uppercase tracking-widest text-xs hover:bg-indigo-50 transition-colors">
+                              View Project <ExternalLink className="w-4 h-4" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-start gap-4">
+                      <div>
+                        <h3 className="text-4xl font-black mb-4 uppercase tracking-tighter">{proj.title}</h3>
+                        <p className="text-lg opacity-60 leading-relaxed max-w-md">{proj.description}</p>
+                      </div>
+                      <span className="text-6xl font-black opacity-5 tracking-tighter">0{i + 1}</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-20 text-center border-2 border-dashed border-current/10 rounded-[2.5rem]">
+                <p className="text-xl opacity-40 font-bold uppercase tracking-widest">No projects found for {selectedTech}</p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -521,7 +549,7 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
           <div className="max-w-7xl mx-auto">
             <h2 className="text-4xl font-bold mb-16 tracking-tight">Featured Projects</h2>
             <div className="grid md:grid-cols-2 gap-8">
-              {profile.sectionVisibility?.projects && profile.projects?.map((proj, i) => (
+              {profile.sectionVisibility?.projects && filteredProjects.map((proj, i) => (
                 <div key={i} className={`bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border ${borderColor} group`}>
                   <div className="aspect-video overflow-hidden">
                     <img src={`https://picsum.photos/800/600?random=${i + 600}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt={proj.title} />
@@ -535,7 +563,7 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
                           <span key={idx} className="text-[10px] font-bold uppercase tracking-widest opacity-40">{tech}</span>
                         ))}
                       </div>
-                      {proj.link && <a href={proj.link} target="_blank" rel="noopener noreferrer" className="text-sm font-bold hover:underline" style={textStyle}>Case Study →</a>}
+                      {proj.link && <a href={proj.link} target="_blank" rel="noopener noreferrer" className="text-sm font-bold hover:underline inline-flex items-center gap-1" style={textStyle}>View Project <ExternalLink className="w-3 h-3" /></a>}
                     </div>
                   </div>
                 </div>
@@ -572,14 +600,14 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
           <section className="mb-24">
             <h2 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-8">Work</h2>
             <div className="space-y-12">
-              {profile.sectionVisibility?.projects && profile.projects?.map((proj, i) => (
+              {profile.sectionVisibility?.projects && filteredProjects.map((proj, i) => (
                 <div key={i} className="group">
                   <div className="flex justify-between items-baseline mb-2">
                     <h3 className="font-bold group-hover:underline">{proj.title}</h3>
                     <span className="text-[10px] opacity-40">{new Date().getFullYear()}</span>
                   </div>
                   <p className="text-sm opacity-60 leading-relaxed">{proj.description}</p>
-                  {proj.link && <a href={proj.link} target="_blank" rel="noopener noreferrer" className="text-[10px] uppercase font-bold mt-2 block hover:opacity-100 opacity-40">Link ↗</a>}
+                  {proj.link && <a href={proj.link} target="_blank" rel="noopener noreferrer" className="text-[10px] uppercase font-bold mt-2 inline-flex items-center gap-1 hover:opacity-100 opacity-40">View Project <ExternalLink className="w-2.5 h-2.5" /></a>}
                 </div>
               ))}
             </div>
@@ -658,15 +686,20 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
               <span className="text-green-800">$</span> ls ./projects
             </h2>
             <div className="grid gap-6">
-              {profile.sectionVisibility?.projects && profile.projects?.map((proj, i) => {
+              {profile.sectionVisibility?.projects && filteredProjects.map((proj, i) => {
                 const Card = (
                   <div key={i} className={`border border-green-900/30 p-4 hover:bg-green-500/5 transition-colors group ${proj.link ? 'cursor-pointer' : ''}`}>
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
                         <h3 className="text-lg font-bold text-green-400 group-hover:text-green-300">
-                          {proj.title.toLowerCase().replace(' ', '_')}.sh
+                          {proj.title.toLowerCase().replace(/\s+/g, '_')}.sh
                         </h3>
-                        {proj.link && <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />}
+                        {proj.link && (
+                          <div className="flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
+                            <span className="text-[10px] font-bold uppercase tracking-widest">View Project</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </div>
+                        )}
                       </div>
                       <span className="text-xs opacity-50">{proj.techStack?.[0]}</span>
                     </div>
@@ -812,8 +845,8 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
                 ))}
               </div>
             </div>
-            <div className="md:col-span-8 grid gap-40">
-              {profile.projects?.filter(() => profile.sectionVisibility.projects).map((proj, i) => {
+            <div className="grid md:grid-cols-8 gap-40">
+              {profile.sectionVisibility.projects && filteredProjects.map((proj, i) => {
                 const Card = (
                   <motion.div 
                     key={i} 
@@ -844,18 +877,21 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
                       <span className="text-xs font-bold uppercase tracking-widest opacity-30 mb-2">Project No. {i + 1}</span>
                     </div>
                     <p className="text-2xl opacity-70 max-w-2xl mb-10 leading-snug">{proj.description}</p>
-                    <div className="flex flex-wrap gap-4">
-                      {proj.techStack?.map((tech, idx) => (
-                        <span key={idx} className="text-[10px] font-bold uppercase tracking-widest border-2 border-current px-4 py-2 rounded-full hover:bg-current hover:text-white transition-colors">{tech}</span>
-                      ))}
+                    <div className="flex flex-wrap gap-4 items-center justify-between">
+                      <div className="flex flex-wrap gap-4">
+                        {proj.techStack?.map((tech, idx) => (
+                          <span key={idx} className="text-[10px] font-bold uppercase tracking-widest border-2 border-current px-4 py-2 rounded-full hover:bg-current hover:text-white transition-colors">{tech}</span>
+                        ))}
+                      </div>
+                      {proj.link && (
+                        <a href={proj.link} target="_blank" rel="noopener noreferrer" className="text-xs font-bold uppercase tracking-[0.3em] border-b-2 border-current pb-1 hover:opacity-50 transition-opacity inline-flex items-center gap-2">
+                          View Project <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
                     </div>
                   </motion.div>
                 );
-                return proj.link ? (
-                  <a key={i} href={proj.link} target="_blank" rel="noopener noreferrer" className="block outline-none">
-                    {Card}
-                  </a>
-                ) : Card;
+                return Card;
               })}
 
               {/* Awards & Honors in Magazine */}
@@ -1014,7 +1050,7 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
           <section id="work" className="p-8 md:p-24 bg-slate-50 dark:bg-slate-900/50 scroll-mt-0">
             <h2 className="text-xs font-bold uppercase tracking-[0.3em] text-slate-400 mb-16">Selected Projects</h2>
             <div className="grid gap-24">
-              {profile.projects?.map((proj, i) => {
+              {profile.sectionVisibility.projects && filteredProjects.map((proj, i) => {
                 const Card = (
                   <div key={i} className={`group grid md:grid-cols-2 gap-12 items-center ${proj.link ? 'cursor-pointer' : ''}`}>
                     <div className="aspect-video overflow-hidden rounded-2xl bg-slate-200 dark:bg-slate-800 relative">
@@ -1236,7 +1272,7 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
             </motion.div>
 
             {/* Projects Grid in Bento */}
-            {profile.projects?.map((proj, i) => {
+            {profile.sectionVisibility.projects && filteredProjects.map((proj, i) => {
               const Card = (
                 <motion.div 
                   key={i}
@@ -1257,6 +1293,11 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
                         {proj.link && <ExternalLink className="w-5 h-5" />}
                       </div>
                       <p className="text-sm text-slate-300 line-clamp-2 opacity-80">{proj.description}</p>
+                      {proj.link && (
+                        <span className="text-[10px] font-bold uppercase tracking-widest mt-4 inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/30">
+                          View Project <ExternalLink className="w-3 h-3" />
+                        </span>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -1405,7 +1446,7 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
           <section className="mb-24">
             <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 mb-12">Projects</h2>
             <div className="space-y-16">
-              {profile.sectionVisibility.projects && profile.projects?.map((proj, i) => {
+              {profile.sectionVisibility.projects && filteredProjects.map((proj, i) => {
                 const Card = (
                   <div key={i} className={`group ${proj.link ? 'cursor-pointer' : ''}`}>
                     <div className="flex justify-between items-baseline mb-2">
@@ -1416,6 +1457,7 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
                       <span className="text-xs font-mono text-slate-400">{proj.techStack?.[0]}</span>
                     </div>
                     <p className="text-slate-500 leading-relaxed">{proj.description}</p>
+                    {proj.link && <span className="text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-40 transition-opacity mt-2 block">View Project ↗</span>}
                   </div>
                 );
                 return proj.link ? (
@@ -1498,7 +1540,7 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
                 </p>
               </div>
               <div className="space-y-32">
-                {profile.sectionVisibility.projects && profile.projects?.map((proj, i) => {
+                {profile.sectionVisibility.projects && filteredProjects.map((proj, i) => {
                   const Card = (
                     <motion.div 
                       key={i}
@@ -1524,10 +1566,13 @@ const WebsitePreview: React.FC<Props> = ({ profile, onShare, isDarkMode = false 
                         {proj.title}
                         {proj.link && <ExternalLink className="w-6 h-6 opacity-30 group-hover:opacity-100 transition-opacity" />}
                       </h3>
-                      <div className="flex gap-4">
-                        {proj.techStack?.map((tech, idx) => (
-                          <span key={idx} className="text-xs border border-white/20 px-3 py-1 rounded-full">{tech}</span>
-                        ))}
+                      <div className="flex justify-between items-center">
+                        <div className="flex gap-4">
+                          {proj.techStack?.map((tech, idx) => (
+                            <span key={idx} className="text-xs border border-white/20 px-3 py-1 rounded-full">{tech}</span>
+                          ))}
+                        </div>
+                        {proj.link && <span className="text-xs font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity border-b-2 border-white/50 pb-1">View Project</span>}
                       </div>
                     </motion.div>
                   );

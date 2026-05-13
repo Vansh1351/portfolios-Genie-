@@ -4,23 +4,25 @@
     {
       "src": "package.json",
       "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
+      "config": { "distDir": "dist" }
+    },
+    {
+      "src": "api/index.ts",
+      "use": "@vercel/node"
     }
   ],
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/server"
+      "destination": "/api/index"
     },
     {
       "source": "/auth/(.*)",
-      "destination": "/api/server"
+      "destination": "/api/index"
     },
     {
-      "source": "(.*)",
-      "destination": "/"
+      "source": "/((?!api/|auth/|assets/|favicon.ico|manifest.json).*)$",
+      "destination": "/index.html"
     }
   ]
 }
