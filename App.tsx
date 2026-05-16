@@ -48,7 +48,7 @@ import ManualEdit from './components/ManualEdit';
 import AuthModal from './components/AuthModal';
 import Sidebar from './components/Sidebar';
 import ExportPreviewModal from './components/ExportPreviewModal';
-import { auth, db, isFirebaseConfigured, testFirestoreConnection } from './lib/firebase';
+import { auth, db, isFirebaseConfigured, testFirestoreConnection, OperationType, handleFirestoreError } from './lib/firebase';
 import { 
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
@@ -216,6 +216,8 @@ const App: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [exports, setExports] = useState<{name: string, url: string, type: string, createdAt: string}[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [provider, setProvider] = useState<'gemini' | 'openrouter'>('gemini');
+  const [model, setModel] = useState<string>('openai/gpt-4o-mini');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [cloudStatus, setCloudStatus] = useState<'synced' | 'syncing' | 'error' | 'offline'>('offline');
@@ -256,7 +258,9 @@ const App: React.FC = () => {
       const history = overrideMessages || [...messages, userMsg];
       const result = await chatWithGenie(history, { 
         thinkingMode, 
-        attachments: userMsg.attachments 
+        attachments: userMsg.attachments,
+        provider,
+        model
       });
       setMessages(prev => [...prev, { 
         role: 'assistant', 
@@ -465,7 +469,13 @@ const App: React.FC = () => {
       
       try {
         const docRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
+        let docSnap;
+        try {
+          docSnap = await getDoc(docRef);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
+          return;
+        }
         
         if (docSnap.exists()) {
           const data = docSnap.data();
@@ -486,8 +496,12 @@ const App: React.FC = () => {
           }
           showNotification("Cloud data synced", "success");
         }
-      } catch (error) {
+      } catch (error: any) {
         console.warn("Firebase fetch error:", error);
+        // If it's a JSON error from handleFirestoreError, we've already logged it
+        if (!error.message?.startsWith('{')) {
+          showNotification("Failed to sync with cloud. Working offline.", "error");
+        }
       }
     };
     fetchUserData();
@@ -505,16 +519,20 @@ const App: React.FC = () => {
     setCloudStatus('syncing');
     try {
       const docRef = doc(db, 'users', user.uid);
-      await setDoc(docRef, { 
-        profile_data: newProfile,
-        sessions_data: newSessions,
-        exports_data: newExports || exports,
-        settings: {
-          websiteDarkMode,
-          pdfSettings
-        },
-        updated_at: serverTimestamp()
-      }, { merge: true });
+      try {
+        await setDoc(docRef, { 
+          profile_data: newProfile,
+          sessions_data: newSessions,
+          exports_data: newExports || exports,
+          settings: {
+            websiteDarkMode,
+            pdfSettings
+          },
+          updated_at: serverTimestamp()
+        }, { merge: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
+      }
       setCloudStatus('synced');
     } catch (error) {
       console.error('Error saving to Firebase:', error);
@@ -1012,32 +1030,34 @@ const App: React.FC = () => {
     fileInputRef.current?.click();
   };
 
-  const saveCurrentChatToCloud = () => {
+  const saveCurrentChatToCloud = async () => {
     if (messages.length === 0) {
       showNotification("Nothing to save yet!", "info");
       return;
     }
 
-    const currentTitle = sessions.find(s => s.id === currentSessionId)?.title || "Untitled Session";
-    const historyText = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
-    const blob = new Blob([historyText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    
-    // In a real cloud scenario, we would upload this to Firebase Storage.
-    // For now, we'll add it to the exports list to track it.
-    const newExport = {
-      name: `${currentTitle} - Chat Log`,
-      url: url,
-      type: 'txt',
-      createdAt: new Date().toISOString()
-    };
-    
-    setExports(prev => [...prev, newExport]);
-    showNotification("History saved and synced to cloud!", "success");
-    
-    // Auto sync to firebase
-    if (user) {
-      saveToFirebase(profile, sessions, [...exports, newExport]);
+    if (!user) {
+      setShowAuthModal(true);
+      showNotification("Please sign in or create an account to save your history to the cloud.", "info");
+      return;
+    }
+
+    setIsGeneratingPDF(true);
+    showNotification("Archiving chat history to your Cloud storage...", "info");
+
+    try {
+      const currentTitle = sessions.find(s => s.id === currentSessionId)?.title || "Untitled Session";
+      const historyText = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+      const filename = `${sanitizeFilename(currentTitle)}_Chat_Log.txt`;
+      const blob = new Blob([historyText], { type: 'text/plain' });
+      
+      await uploadExportToFirebase(blob, filename);
+      showNotification("History archived and synced to Cloud!", "success");
+    } catch (err) {
+      console.error("Chat archive failed:", err);
+      showNotification("Failed to archive chat. Local copy is still available.", "error");
+    } finally {
+      setIsGeneratingPDF(false);
     }
   };
 
@@ -1151,7 +1171,7 @@ const App: React.FC = () => {
     setIsTyping(true);
     showNotification("Synthesizing your professional identity...", "info");
     try {
-      const data = await extractProfileData(messages);
+      const data = await extractProfileData(messages, provider);
       if (data) {
         setProfile(prev => ({ ...prev, ...data }));
         setAppState('preview');
@@ -2227,14 +2247,42 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2 ml-auto sm:ml-0">
-              <span className={`text-[10px] sm:text-xs font-bold uppercase transition-colors ${thinkingMode ? 'text-indigo-600' : 'text-slate-400'}`}>Deep Reasoning</span>
+            <div className="flex items-center gap-4 ml-auto sm:ml-0">
+              <div className="flex items-center gap-2 pr-4 border-r border-slate-200">
+                <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase">Provider:</span>
+                <select 
+                  value={provider} 
+                  onChange={(e) => setProvider(e.target.value as any)}
+                  className="bg-slate-100 border-none text-[10px] sm:text-xs font-bold text-indigo-600 rounded px-2 py-1 outline-none cursor-pointer"
+                >
+                  <option value="gemini">Gemini</option>
+                  <option value="openrouter">OpenRouter</option>
+                </select>
+                
+                {provider === 'openrouter' && (
+                  <select 
+                    value={model} 
+                    onChange={(e) => setModel(e.target.value)}
+                    className="bg-slate-100 border-none text-[10px] sm:text-xs font-bold text-slate-600 rounded px-2 py-1 outline-none cursor-pointer"
+                  >
+                    <option value="openai/gpt-4o-mini">GPT-4o Mini</option>
+                    <option value="openai/gpt-4o">GPT-4o</option>
+                    <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+                    <option value="deepseek/deepseek-r1:free">DeepSeek R1 (Free)</option>
+                    <option value="deepseek/deepseek-chat">DeepSeek V3</option>
+                  </select>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] sm:text-xs font-bold uppercase transition-colors ${thinkingMode ? 'text-indigo-600' : 'text-slate-400'}`}>Deep Reasoning</span>
               <button onClick={() => setThinkingMode(!thinkingMode)} className={`w-8 h-4 sm:w-10 sm:h-5 rounded-full relative transition-colors ${thinkingMode ? 'bg-indigo-600' : 'bg-slate-300'}`}>
                 <div className={`absolute top-0.5 sm:top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all ${thinkingMode ? 'left-4 sm:left-6' : 'left-1'}`}></div>
               </button>
             </div>
           </div>
-          <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex gap-2 sm:gap-4">
+        </div>
+        <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex gap-2 sm:gap-4">
             <input 
               type="text" 
               value={inputText} 

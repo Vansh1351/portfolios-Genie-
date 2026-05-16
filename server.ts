@@ -5,13 +5,48 @@ import { fileURLToPath } from 'url';
 import { google } from 'googleapis';
 import cookieParser from 'cookie-parser';
 import * as dotenv from 'dotenv';
-
 import { GoogleGenAI, Type } from "@google/genai";
 
 dotenv.config();
 
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+
 // Initialize the Gemini API client server-side
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const ai = new GoogleGenAI({ 
+  apiKey: process.env.GEMINI_API_KEY || '',
+});
+
+async function callOpenRouter(messages: any[], systemPrompt: string, model: string = "deepseek/deepseek-r1:free") {
+  if (!OPENROUTER_API_KEY) throw new Error("OpenRouter API key not configured");
+  
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+      "HTTP-Referer": process.env.APP_URL || "https://ais-build.com",
+      "X-Title": "PortfolioGenie AI",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`OpenRouter error: ${JSON.stringify(errorData)}`);
+  }
+
+  const data = await response.json();
+  return {
+    text: data.choices[0].message.content,
+    sources: [] 
+  };
+}
 
 // Support for both ESM and CJS (when bundled)
 let currentDirPath = process.cwd();
@@ -138,8 +173,19 @@ const startServer = async () => {
 
   // Gemini Chat Proxy
   app.post('/api/chat', async (req, res) => {
-    const { history, options } = req.body;
+    const { history, options, provider } = req.body;
+    const systemPrompt = req.body.systemPrompt || "You are Genie, a helpful career assistant.";
+    
     try {
+      if (provider === 'openrouter' && OPENROUTER_API_KEY) {
+        const messages = history.map((m: any) => ({
+          role: m.role,
+          content: m.content
+        }));
+        const result = await callOpenRouter(messages, systemPrompt, options?.model || "openai/gpt-4o-mini");
+        return res.json(result);
+      }
+
       const { thinkingMode, attachments } = options || {};
       const modelName = (thinkingMode || (attachments && attachments.length > 0)) 
         ? 'gemini-3.1-pro-preview' 
@@ -201,8 +247,30 @@ const startServer = async () => {
 
   // Gemini Extraction Proxy
   app.post('/api/extract', async (req, res) => {
-    const { history } = req.body;
+    const { history, provider } = req.body;
+    const extractionPrompt = "Now, based on all the information shared above, extract the user's professional profile information into the specified JSON format. Ensure all sections are populated based on the conversation.";
+    
     try {
+      if (provider === 'openrouter' && OPENROUTER_API_KEY) {
+        const messages = history.map((m: any) => ({
+          role: m.role,
+          content: m.content
+        }));
+        messages.push({ role: "user", content: extractionPrompt + " Output ONLY valid raw JSON." });
+        
+        const result = await callOpenRouter(messages, "You are a professional JSON data extractor.", "openai/gpt-4o");
+        let extractedData;
+        try {
+          // Cleanup potential markdown blocks
+          const jsonStr = result.text.replace(/```json/g, '').replace(/```/g, '').trim();
+          extractedData = JSON.parse(jsonStr);
+        } catch (e) {
+          console.error("OpenRouter Extraction Parse Error:", result.text);
+          throw new Error("Failed to parse OpenRouter extraction");
+        }
+        return res.json(extractedData);
+      }
+
       const contents = history.map((m: any) => {
         const parts: any[] = [{ text: m.content }];
         if (m.attachments) {
@@ -223,7 +291,7 @@ const startServer = async () => {
 
       contents.push({
         role: 'user',
-        parts: [{ text: "Now, based on all the information shared above, extract the user's professional profile information into the specified JSON format." }]
+        parts: [{ text: "Now, based on all the information shared above, extract the user's professional profile information into the specified JSON format. Ensure all sections are populated based on the conversation." }]
       });
 
       const response = await ai.models.generateContent({

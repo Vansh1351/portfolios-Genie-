@@ -3,7 +3,7 @@ import { Message, UserProfile, Attachment } from "../types";
 
 export const chatWithGenie = async (
   history: Message[], 
-  options: { thinkingMode?: boolean; attachments?: Attachment[] } = {}
+  options: { thinkingMode?: boolean; attachments?: Attachment[]; provider?: string; model?: string } = {}
 ) => {
   try {
     const response = await fetch('/api/chat', {
@@ -13,9 +13,12 @@ export const chatWithGenie = async (
       },
       body: JSON.stringify({ 
         history, 
-        options,
-        // The system prompt is still stored in constants, we can pass it if we want
-        // but the server can also have its own default.
+        options: {
+          thinkingMode: options.thinkingMode,
+          attachments: options.attachments,
+          model: options.model
+        },
+        provider: options.provider,
       }),
     });
 
@@ -30,14 +33,14 @@ export const chatWithGenie = async (
   }
 };
 
-export const extractProfileData = async (history: Message[]): Promise<UserProfile | null> => {
+export const extractProfileData = async (history: Message[], provider?: string): Promise<UserProfile | null> => {
   try {
     const response = await fetch('/api/extract', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ history }),
+      body: JSON.stringify({ history, provider }),
     });
 
     if (!response.ok) {

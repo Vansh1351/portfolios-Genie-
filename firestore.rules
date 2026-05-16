@@ -1,42 +1,25 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    
+    // Helper to check if a user is the owner of a document
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-    
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return request.auth != null && request.auth.uid == userId;
     }
 
-    function incoming() {
-      return request.resource.data;
+    // Match users collection
+    match /users/{userId} {
+      // Allow the owner to read and write their own document
+      allow read, write: if isOwner(userId);
     }
 
-    function existing() {
-      return resource.data;
+    // Allow connection test for any signed in user
+    match /_connection_test_/{docId} {
+      allow read: if request.auth != null;
     }
 
-    // Default deny
+    // Default deny for everything else
     match /{document=**} {
       allow read, write: if false;
-    }
-
-    match /users/{userId} {
-      allow get: if isOwner(userId) && isValidId(userId);
-      allow create: if isOwner(userId) && isValidId(userId)
-        && incoming().keys().hasAll(['profile_data', 'sessions_data', 'exports_data', 'settings', 'updated_at'])
-        && incoming().updated_at == request.time;
-      allow update: if isOwner(userId) && isValidId(userId)
-        && incoming().updated_at == request.time
-        && incoming().updated_at >= existing().updated_at;
-      
-      allow list: if false;
     }
   }
 }

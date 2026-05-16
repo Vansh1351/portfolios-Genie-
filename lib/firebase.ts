@@ -3,9 +3,10 @@ import { getAuth } from 'firebase/auth';
 import { 
   initializeFirestore, 
   doc, 
-  getDocFromCache, 
   getDocFromServer 
 } from 'firebase/firestore';
+import firebaseConfig from '../firebase-applet-config.json';
+
 // Helper to check if a value is a placeholder or an invalid URL
 const isPlaceholder = (val?: string) => {
   if (!val) return true;
@@ -19,7 +20,6 @@ const isPlaceholder = (val?: string) => {
     'your_app_id',
     '(default)',
     'database_id',
-    'your_project_id',
     'your_firebase_config',
     'placeholder'
   ];
@@ -35,44 +35,65 @@ const isPlaceholder = (val?: string) => {
   return false;
 };
 
-const getEnv = (key: string, fallback: string) => {
-  const val = import.meta.env[key];
-  // If it exists but it's a placeholder, return fallback
-  if (val && !isPlaceholder(String(val))) {
-    return String(val);
-  }
-  return fallback;
-};
-
-// Configuration object using environment variables with project-specific fallbacks.
-// IMPORTANT: These fallbacks are based on the initially provisioned project.
-// If you remix this app, you should update these to your own project IDs or set them in Secrets.
-const config = {
-  apiKey: getEnv('VITE_FIREBASE_API_KEY', 'AIzaSyCT1UPa4ZiQivML5vbGrQRzL1jFswl6Pp4'),
-  authDomain: getEnv('VITE_FIREBASE_AUTH_DOMAIN', 'gen-lang-client-0279308694.firebaseapp.com'),
-  projectId: getEnv('VITE_FIREBASE_PROJECT_ID', 'gen-lang-client-0279308694'),
-  storageBucket: getEnv('VITE_FIREBASE_STORAGE_BUCKET', 'gen-lang-client-0279308694.firebasestorage.app'),
-  messagingSenderId: getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID', '978301294165'),
-  appId: getEnv('VITE_FIREBASE_APP_ID', '1:978301294165:web:5333682ca746f3d9e226dc'),
-  firestoreDatabaseId: getEnv('VITE_FIRESTORE_DATABASE_ID', 'ai-studio-79c7ec6f-dca0-4319-8f2a-c01b36c8f322')
-};
-
-// Use the database ID from config, fallback to (default) only if truly empty
-const dbId = (config.firestoreDatabaseId && !isPlaceholder(config.firestoreDatabaseId)) 
-  ? config.firestoreDatabaseId 
-  : '(default)';
-
-const app = initializeApp(config);
+const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 // Use initializeFirestore with long polling to ensure compatibility in preview iframes
+const dbId = '(default)';
 export const db = initializeFirestore(app, {
   ignoreUndefinedProperties: true,
-  experimentalForceLongPolling: true, // Forced long polling fixes many connectivity issues in sandboxed environments
-  experimentalAutoDetectLongPolling: false // We force it, so don't auto-detect
+  experimentalForceLongPolling: true,
+  experimentalAutoDetectLongPolling: false
 }, dbId);
 
-export const isFirebaseConfigured = !!(config.apiKey && config.projectId);
+export const isFirebaseConfigured = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 // Test function to verify database connection
 export const testFirestoreConnection = async () => {
@@ -96,12 +117,7 @@ export const testFirestoreConnection = async () => {
       console.error(`FIRESTORE ERROR: Database '${dbId}' not found. Please ensure the database ID matches your Firestore console.`);
     } else if (msg.includes('offline')) {
       console.error(`FIRESTORE ERROR: Client is offline. This is common in preview environments.`);
-      console.error(`Config used: Project='${config.projectId}', DB='${dbId}'`);
-      if (isPlaceholder(dbId) || dbId.includes('YOUR_PROJECT_ID') || dbId.includes('DATABASE_ID')) {
-        console.error("CRITICAL: It looks like you're using placeholder IDs. Please run the Firebase Setup tool again.");
-        return false;
-      }
-      console.error("Full error details:", error);
+      console.error(`Config used: Project='${firebaseConfig.projectId}', DB='${dbId}'`);
     } else {
       console.error("FIRESTORE CONNECTION ERROR:", error);
       console.error("Error Code:", code);
